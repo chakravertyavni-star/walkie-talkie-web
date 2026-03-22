@@ -888,3 +888,13 @@ input:-webkit-autofill:active {
     padding-inline: 0.85rem;
   }
 }
+
+/* Hidden elements for WebRTC remote playback */
+.remote-audio-hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

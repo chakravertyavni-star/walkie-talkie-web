@@ -1,37 +1,47 @@
 ## Convoy Walkie Frontend
 
-React + Vite frontend for group vehicle voice communication. This project is frontend-only and does not connect to a backend yet.
+React + Vite UI for group voice. **Voice signaling and WebRTC** use the **Socket.IO server** in `../backend/server.js` (not Firebase).
 
-### Vanilla WebRTC + Firebase demo (`WebRTC/`)
+### Run locally (with backend)
 
-A separate **Vite + vanilla JS** group audio room (numeric room codes, display names, Firestore signaling) lives in [`WebRTC/`](../WebRTC/). See [`WebRTC/WEBRTC_DEMO_README.md`](../WebRTC/WEBRTC_DEMO_README.md). From that folder:
+1. Start the backend (port **5002**):
 
 ```bash
-cd WebRTC
+cd ../backend
+npm install
+npm start
+```
+
+2. Start the frontend:
+
+```bash
 npm install
 npm run dev
 ```
 
-Configure Firebase in `WebRTC/main.js` before using calling features.
+3. Optional: point the app at another host (e.g. production):
+
+Create `frontend/.env`:
+
+```
+VITE_SOCKET_URL=http://localhost:5002
+```
 
 ### Implemented UI and flows
 
 - Home page with room-code join and each user's unique ID for direct invites.
 - Rooms page with room list and quick start buttons.
-- Room page with room name/code, horizontal participant cards, active speaker glow, and circular pulsing mic button.
+- **Room page**: connects to the backend via **Socket.IO** (`join-room`, `room-users`), **mesh WebRTC audio** via `signal` events, mic toggle with real `getUserMedia`, remote participant audio playback.
 - Profile page with avatar, user info, and actions for edit/friends/settings.
 - Edit Profile page with name update and profile photo upload.
 - Friends page with add-friend by unique ID and share-my-ID.
 - Settings page with client-side toggles.
 
-### Run locally
+### WebRTC implementation
 
-```bash
-npm install
-npm run dev
-```
+- Hook: `src/hooks/useWalkieRoom.js` — aligns with backend events: `join-room`, `room-users`, `signal`, `start-speaking`, `stop-speaking`, `user-left`.
 
-Production build:
+### Production build
 
 ```bash
 npm run build

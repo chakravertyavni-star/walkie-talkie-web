@@ -1,91 +1,111 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppContext } from "../context/AppContext.jsx";
-
-const initialParticipants = [
-  { id: "u1", userId: "YOU", name: "You", isSpeaking: false, photoDataUrl: "" },
-  {
-    id: "u2",
-    userId: "USER-LEAD",
-    name: "Lead Car",
-    isSpeaking: false,
-    photoDataUrl: ""
-  },
-  {
-    id: "u3",
-    userId: "USER-SUPPORT",
-    name: "Support",
-    isSpeaking: false,
-    photoDataUrl: ""
-  }
-];
+import { useWalkieRoom } from "../hooks/useWalkieRoom.js";
 
 export const RoomPage = () => {
   const { roomId } = useParams();
-  const { profile, friends, getRoomById, getOrCreateRoomById } = useAppContext();
+  const { profile, getRoomById, getOrCreateRoomById } = useAppContext();
   const normalizedRoomId = (roomId || "").toUpperCase();
   const existingRoom = getRoomById(normalizedRoomId);
   const [resolvedRoom, setResolvedRoom] = useState(existingRoom);
   const [micOn, setMicOn] = useState(false);
-  const [newUserId, setNewUserId] = useState("");
-  const [newUserName, setNewUserName] = useState("");
-  const [addStatus, setAddStatus] = useState("");
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [participants, setParticipants] = useState(initialParticipants);
+  const [localStream, setLocalStream] = useState(null);
+  const [mediaError, setMediaError] = useState("");
+
+  const displayName = profile?.name?.trim() || "Guest";
+
+  const {
+    roomUsers,
+    mySocketId,
+    socketConnected,
+    connectionError,
+    remoteStreams,
+    speakingRemoteId,
+  } = useWalkieRoom({
+    roomCode: normalizedRoomId,
+    userName: displayName,
+    localStream,
+    micOn,
+  });
 
   useEffect(() => {
     if (existingRoom) {
       setResolvedRoom(existingRoom);
       return;
     }
-
     if (normalizedRoomId) {
-      const createdRoom = getOrCreateRoomById(normalizedRoomId);
-      setResolvedRoom(createdRoom);
+      setResolvedRoom(getOrCreateRoomById(normalizedRoomId));
     }
   }, [existingRoom, getOrCreateRoomById, normalizedRoomId]);
 
+  /** Real microphone when mic is on */
   useEffect(() => {
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.id === "u1" ? { ...p, isSpeaking: micOn } : { ...p, isSpeaking: false }
-      )
-    );
+    if (!micOn) {
+      localStream?.getTracks().forEach((t) => t.stop());
+      setLocalStream(null);
+      setMediaError("");
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        setLocalStream(stream);
+        setMediaError("");
+      } catch (err) {
+        console.error(err);
+        setMediaError(err?.message || "Could not access microphone");
+        setMicOn(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [micOn]);
 
-  const handleAddParticipant = () => {
-    const normalizedUserId = newUserId.trim().toUpperCase();
-    if (!normalizedUserId) {
-      setAddStatus("Enter a valid user ID.");
-      return;
+  const participants = useMemo(() => {
+    if (!roomUsers.length) {
+      return [
+        {
+          id: "pending",
+          name: displayName,
+          isLocal: true,
+          isSpeaking: false,
+          photoDataUrl: profile.photoDataUrl || "",
+        },
+      ];
     }
 
-    const duplicate = participants.some((p) => p.userId === normalizedUserId);
-    if (duplicate) {
-      setAddStatus("This user is already in the room.");
-      return;
-    }
-
-    const matchedFriend = friends.find((friend) => friend.id === normalizedUserId);
-    const resolvedName =
-      newUserName.trim() ||
-      matchedFriend?.name ||
-      `User ${normalizedUserId.slice(-4)}`;
-
-    const nextParticipant = {
-      id: `u-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      userId: normalizedUserId,
-      name: resolvedName,
-      isSpeaking: false,
-      photoDataUrl: matchedFriend?.photoDataUrl || ""
-    };
-
-    setParticipants((prev) => [...prev, nextParticipant]);
-    setNewUserId("");
-    setNewUserName("");
-    setAddStatus("Participant added.");
-    setShowAddUserModal(false);
-  };
+    return roomUsers.map((u) => {
+      const isLocal = mySocketId && u.id === mySocketId;
+      const isSpeaking =
+        (isLocal && micOn) || (!isLocal && speakingRemoteId === u.id);
+      return {
+        id: u.id,
+        name: u.name || "Anonymous",
+        isLocal,
+        isSpeaking,
+        photoDataUrl: isLocal ? profile.photoDataUrl || "" : "",
+      };
+    });
+  }, [
+    roomUsers,
+    mySocketId,
+    micOn,
+    speakingRemoteId,
+    displayName,
+    profile.photoDataUrl,
+  ]);
 
   return (
     <section className="room-page">
@@ -95,8 +115,33 @@ export const RoomPage = () => {
           <div className="room-meta-value room-meta-standalone">
             {resolvedRoom?.id || normalizedRoomId}
           </div>
+          {!socketConnected && (
+            <p className="page-subtitle status-text" style={{ marginTop: "0.5rem" }}>
+              Connecting to voice server…
+            </p>
+          )}
+          {connectionError && (
+            <p className="page-subtitle status-text" style={{ color: "#fca5a5" }}>
+              Voice server: {connectionError} — start backend on port 5002 or set
+              VITE_SOCKET_URL.
+            </p>
+          )}
+          {mediaError && (
+            <p className="page-subtitle status-text" style={{ color: "#fca5a5" }}>
+              Mic: {mediaError}
+            </p>
+          )}
         </div>
       </header>
+
+      {/* Remote audio (WebRTC) */}
+      <div className="remote-audio-hidden" aria-hidden="true">
+        {Object.entries(remoteStreams).map(([id, stream]) => (
+          <audio key={id} autoPlay playsInline ref={(el) => {
+            if (el) el.srcObject = stream;
+          }} />
+        ))}
+      </div>
 
       <div className="room-layout">
         <div className="participants-strip">
@@ -109,7 +154,7 @@ export const RoomPage = () => {
               }
             >
               <div className="participant-avatar">
-                {p.id === "u1" && profile.photoDataUrl ? (
+                {p.isLocal && profile.photoDataUrl ? (
                   <img
                     src={profile.photoDataUrl}
                     alt="Your profile"
@@ -129,19 +174,16 @@ export const RoomPage = () => {
                 )}
               </div>
               <div className="participant-details">
-                <div className="participant-name">{p.name}</div>
-                {p.isSpeaking && <div className="speaking-indicator">Speaking</div>}
+                <div className="participant-name">
+                  {p.name}
+                  {p.isLocal ? " (you)" : ""}
+                </div>
+                {p.isSpeaking && (
+                  <div className="speaking-indicator">Speaking</div>
+                )}
               </div>
             </div>
           ))}
-          <button
-            className="add-user-tile"
-            onClick={() => setShowAddUserModal(true)}
-            aria-label="Add user"
-          >
-            <span className="add-user-plus">+</span>
-            <span>Add User</span>
-          </button>
         </div>
 
         <div className="mic-controls">
@@ -155,57 +197,11 @@ export const RoomPage = () => {
           >
             <span className="mic-icon">🎙</span>
           </button>
-          <p className="mic-helper-text">{micOn ? "Mic is ON" : "Mic is OFF"}</p>
+          <p className="mic-helper-text">
+            {micOn ? "Mic is ON — others can hear you" : "Mic is OFF"}
+          </p>
         </div>
       </div>
-
-      {showAddUserModal && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Add User to Room</h2>
-              <button
-                className="icon-button"
-                onClick={() => setShowAddUserModal(false)}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="field">
-              <span className="field-label">User ID</span>
-              <input
-                type="text"
-                placeholder="USER-1234"
-                value={newUserId}
-                onChange={(e) => setNewUserId(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span className="field-label">Name (Optional)</span>
-              <input
-                type="text"
-                placeholder="Name"
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-              />
-            </div>
-            {addStatus ? <p className="page-subtitle status-text">{addStatus}</p> : null}
-            <div className="modal-footer">
-              <button
-                className="primary-btn"
-                onClick={handleAddParticipant}
-                disabled={!newUserId.trim()}
-              >
-                Add User
-              </button>
-              <button className="ghost-btn" onClick={() => setShowAddUserModal(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 };
