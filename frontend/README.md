@@ -2,17 +2,16 @@
 
 React + Vite frontend for group vehicle voice communication. This project is frontend-only and does not connect to a backend yet.
 
-### Vanilla WebRTC + Firebase demo (`webrtc-group-audio/`)
+### Vanilla WebRTC + Firebase demo (repo root)
 
-A separate **Vite + vanilla JS** group audio room (numeric room codes, display names, Firestore signaling) lives in [`webrtc-group-audio/`](./webrtc-group-audio/). From that folder:
+A separate **Vite + vanilla JS** group audio room (numeric room codes, display names, Firestore signaling) lives at the **repository root** next to `backend/` and `frontend/`. See [`WEBRTC_DEMO_README.md`](../WEBRTC_DEMO_README.md). From the repo root:
 
 ```bash
-cd webrtc-group-audio
 npm install
 npm run dev
 ```
 
-Configure Firebase in `webrtc-group-audio/main.js` before using calling features.
+Configure Firebase in `main.js` (root) before using calling features.
 
 ### Implemented UI and flows
 

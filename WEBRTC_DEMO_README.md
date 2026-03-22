@@ -7,13 +7,11 @@ Watch the [WebRTC Explanation on YouTube](https://youtu.be/WmR9IMUD_CY) and foll
 
 ## Usage
 
-1. Update the Firebase project config in `main.js`.
-2. Run the app:
+1. Update the Firebase project config in `main.js` (at the **repository root**).
+2. From the **repository root** (same folder as this file), run:
 
 ```
-git clone <this-repo>
 npm install
-
 npm run dev
 ```
 
