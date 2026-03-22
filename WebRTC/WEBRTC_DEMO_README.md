@@ -7,13 +7,16 @@ Watch the [WebRTC Explanation on YouTube](https://youtu.be/WmR9IMUD_CY) and foll
 
 ## Usage
 
-1. Update the Firebase project config in `main.js` (at the **repository root**).
-2. From the **repository root** (same folder as this file), run:
+1. Update the Firebase project config in `main.js` (in this **`WebRTC/`** folder).
+2. From the **repository root**, enter this folder and run:
 
 ```
+cd WebRTC
 npm install
 npm run dev
 ```
+
+If your terminal is already in **`WebRTC/`**, run only `npm install` and `npm run dev`.
 
 3. Open multiple browser tabs/devices on the same room:
    - Click `Start microphone`
